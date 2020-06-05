@@ -1,0 +1,88 @@
+---
+- hosts: all
+  become: yes
+
+  vars:
+    sourse_web: /home/dmytro/ansible/website
+    destination: /var/www/html/
+
+  tasks:
+  - name: Checking Linux Family  
+    debug:
+      var: ansible_os_family
+  
+  - block: # REDHOT
+     - name: install httpd Red Hat
+       yum:
+         name: httpd
+         state: latest
+   
+     - service:
+         name: httpd
+         state: started
+         enabled: yes
+    when: ansible_os_family == "RedHat"
+  
+  - block: # Debian
+     - name: install httpd Debian
+       apt:
+         name: apache2
+         state: latest 
+   
+     - service: 
+         name: apache2
+         state: started
+         enabled: yes
+    when: ansible_os_family == "Debian"
+
+  - shell: "ls -la /home/dmytro/"
+    register: memory1
+  - debug:
+      var: memory1
+  
+#  - name: create index.html file
+#    file:
+#      name: /var/www/html/index.html
+#      state: touch
+  
+  - name: Generate template
+    template: 
+      src: "/home/dmytro/ansible/website/index.j2"
+      dest: "{{destination}}/index.html"
+      mode: 0555
+    notify:
+      -  Restart Apache Debian
+      -  Restart Apache RedHat
+
+  - name: copy files
+    copy:
+#     src:{{item}}         <---second metod    +|
+      src: "{{sourse_web}}/{{item}}" 
+      dest: "{{destination}}"
+#   with_fileglob: "{{sourse_web}}/*.*"  <--   +|
+    loop:
+      - "img_chania.jpg"
+      - "pic_trulli.jpg"
+  
+  - name: add web content
+    lineinfile:
+      line: "{{ ansible_hostname }}"
+      path: /var/www/html/index.html
+    notify:
+      -  Restart Apache Debian
+      -  Restart Apache RedHat
+
+  handlers:
+  - name: Restart Apache RedHat
+    service:
+      name: httpd
+      state: restarted
+    when: ansible_os_family == "RedHat"
+  
+  - name: Restart Apache Debian
+    service:
+      name: apache2
+      state: restarted
+    when: ansible_os_family == "Debian"     
+
+
